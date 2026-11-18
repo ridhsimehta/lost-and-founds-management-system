@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lost and Found Management System – Demo</title>
+<style>
+:root{--bg:#f3f5f2;--card:#fff;--ink:#17201d;--mute:#5f6b66;--line:#d9dfda;--acc:#0e6b62;--accInk:#fff;--soft:#e2f0ed;--bad:#b42318;--ok:#15803d}
+@media(prefers-color-scheme:dark){:root{--bg:#111513;--card:#1a201d;--ink:#e7ece9;--mute:#97a29c;--line:#2a332f;--acc:#3dd6c3;--accInk:#05201c;--soft:#1e2f2b;--bad:#f97066;--ok:#4ade80}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{max-width:960px;margin:0 auto;padding:28px 20px 8px;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between}
+h1{margin:0;font-size:28px;letter-spacing:-.02em;line-height:1.15}
+header p{margin:4px 0 0;color:var(--mute);max-width:52ch}
+.matcher{display:flex;align-items:center;gap:8px;color:var(--mute);font-size:13px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--ok);animation:p 2s infinite}
+@keyframes p{50%{opacity:.25}}
+@media(prefers-reduced-motion:reduce){.dot{animation:none}}
+main{max-width:960px;margin:0 auto;padding:12px 20px 48px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+.stat b{display:block;font-size:24px;line-height:1.2}.stat span{color:var(--mute);font-size:13px}
+nav{display:flex;flex-wrap:wrap;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px}
+nav button{background:none;border:0;border-bottom:3px solid transparent;padding:10px 14px;font:inherit;color:var(--mute);cursor:pointer}
+nav button[aria-selected=true]{color:var(--ink);border-color:var(--acc);font-weight:600}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+section{display:none}section.on{display:block}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px}
+form{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--mute)}
+.wide{grid-column:1/-1}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%}
+.btn{font:inherit;background:var(--acc);color:var(--accInk);border:0;border-radius:6px;padding:9px 16px;cursor:pointer;font-weight:600}
+.btn.alt{background:var(--soft);color:var(--ink)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mute);font-weight:600;font-size:13px}
+.bar{height:8px;border-radius:4px;background:var(--soft);min-width:70px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--acc)}
+.empty{color:var(--mute);padding:18px 4px}
+.pill{display:inline-block;padding:1px 9px;border-radius:99px;background:var(--soft);font-size:12px}
+dialog{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:12px;max-width:440px;width:92%}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90%}
+#toast.on{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Lost and Found Management System</h1>
+    <p>Register lost and found items, let the matcher pair them up, verify the claim and return the item.</p>
+  </div>
+  <div class="matcher"><span class="dot"></span>Matcher thread running (every 4 s)</div>
+</header>
+<main>
+  <div class="stats" id="stats"></div>
+  <nav role="tablist" id="tabs"></nav>
+
+  <section id="lost" class="panel"></section>
+  <section id="found" class="panel"></section>
+
+  <section id="matches">
+    <div class="panel tw"><div id="matchTable"></div></div>
+  </section>
+  <section id="report">
+    <div class="panel tw"><div id="reportTable"></div></div>
+  </section>
+
+  <div class="row">
+    <button class="btn alt" id="sample">Load sample data</button>
+    <button class="btn alt" id="reset">Clear all data</button>
+  </div>
+</main>
+
+<dialog id="dlg">
+  <form method="dialog" id="dlgForm" style="display:block">
+    <h2 style="margin:0 0 4px;font-size:18px">Verify claim</h2>
+    <p id="dlgInfo" style="color:var(--mute);margin:0 0 12px"></p>
+    <label>Describe a unique detail of the item (colour, marks, contents)
+      <textarea id="proof" rows="3"></textarea></label>
+    <div class="row">
+      <button class="btn" type="button" id="doVerify">Verify claim</button>
+      <button class="btn alt" value="cancel">Cancel</button>
+    </div>
+  </form>
+</dialog>
+<div id="toast" role="status"></div>
+
+<script>
+const KEY='lf-demo-v1';
+const CATS=['Electronics','Documents','Bags','Keys','Clothing','Other'];
+const $=s=>document.querySelector(s);
+let S;
+try{S=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){S=null}
+S=S||{items:[],claims:[],seq:1};
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const item=id=>S.items.find(i=>i.id===id);
+const today=()=>new Date().toISOString().slice(0,10);
+
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('on'),3200)}
+
+/* Same scoring rules as Item.matchScore in the Java project */
+function words(s){return new Set((s||'').toLowerCase().split(/[^a-z0-9]+/).filter(w=>w.length>2))}
+function score(a,b){
+  let s=0;const x=a.name.toLowerCase(),y=b.name.toLowerCase();
+  if(a.category===b.category)s+=30;
+  if(x===y)s+=40;else if(x.includes(y)||y.includes(x))s+=25;
+  if(a.location.toLowerCase()===b.location.toLowerCase())s+=10;
+  const A=words(a.description),B=words(b.description);let c=0;A.forEach(w=>{if(B.has(w))c++});
+  return Math.min(100,s+Math.min(20,c*5));
+}
+function runMatcher(){
+  let n=0;const open=t=>S.items.filter(i=>i.type===t&&i.status==='OPEN');
+  open('LOST').forEach(l=>open('FOUND').forEach(f=>{
+    const sc=score(l,f);
+    if(sc>=50&&!S.claims.some(c=>c.lostId===l.id&&c.foundId===f.id)){
+      S.claims.push({id:S.seq++,lostId:l.id,foundId:f.id,score:sc,proof:'',status:'SUGGESTED'});n++;
+    }
+  }));
+  if(n){save();render();toast(n+(n>1?' new matches':' new match')+' found by the matcher')}
+}
+setInterval(runMatcher,4000);
+
+/* Tabs */
+const TABS=[['lost','1. Lost item'],['found','2. Found item'],['matches','3-4. Matches and claims'],['report','5. Returned report']];
+function show(id){
+  document.querySelectorAll('main > section').forEach(s=>s.classList.toggle('on',s.id===id));
+  document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.id===id));
+}
+$('#tabs').innerHTML=TABS.map(([id,l])=>`<button role="tab" data-id="${id}">${l}</button>`).join('');
+$('#tabs').onclick=e=>{const b=e.target.closest('button');if(b)show(b.dataset.id)};
+
+/* Registration forms (modules 1 and 2) */
+function formHTML(type){
+  const lost=type==='LOST';
+  return `<form data-type="${type}">
+    <label>Item name<input name="name" required></label>
+    <label>Category<select name="category">${CATS.map(c=>`<option>${c}</option>`).join('')}</select></label>
+    <label class="wide">Description<textarea name="description" rows="3"></textarea></label>
+    <label>${lost?'Last seen at':'Found at'}<input name="location" required></label>
+    <label>Date<input name="date" type="date" value="${today()}" required></label>
+    <label>Your name<input name="owner" required></label>
+    <label>Contact (phone or email)<input name="contact" required></label>
+    <div class="row wide"><button class="btn" type="submit">${lost?'Register lost item':'Register found item'}</button>
+    <button class="btn alt" type="reset">Clear</button></div></form>`;
+}
+$('#lost').innerHTML=formHTML('LOST');
+$('#found').innerHTML=formHTML('FOUND');
+document.querySelectorAll('section form[data-type]').forEach(f=>f.addEventListener('submit',e=>{
+  e.preventDefault();
+  const d=Object.fromEntries(new FormData(f));
+  S.items.push({id:S.seq++,type:f.dataset.type,name:d.name.trim(),category:d.category,description:d.description.trim(),
+    location:d.location.trim(),date:d.date,owner:d.owner.trim(),contact:d.contact.trim(),status:'OPEN'});
+  save();f.reset();f.date.value=today();render();
+  toast((f.dataset.type==='LOST'?'Lost':'Found')+' item registered');
+  setTimeout(runMatcher,300);
+}));
+
+/* Claim verification (module 4): needs 2 shared words with the found item description */
+let cur=null;
+function openVerify(id){
+  cur=S.claims.find(c=>c.id===id);const l=item(cur.lostId),f=item(cur.foundId);
+  $('#dlgInfo').textContent=`${l.name} (lost by ${l.owner}) matches ${f.name} (found at ${f.location})`;
+  $('#proof').value='';$('#dlg').showModal();
+}
+$('#doVerify').onclick=()=>{
+  const f=item(cur.foundId),d=words(f.description);let n=0;
+  words($('#proof').value).forEach(w=>{if(d.has(w))n++});
+  const ok=n>=2;cur.proof=$('#proof').value.trim();cur.status=ok?'APPROVED':'REJECTED';
+  if(ok){item(cur.lostId).status='RETURNED';f.status='RETURNED'}
+  save();$('#dlg').close();render();
+  toast(ok?'Claim approved: item returned':'Claim rejected: proof did not match the found item');
+};
+
+/* Rendering */
+function render(){
+  const c=(t,s)=>S.items.filter(i=>i.type===t&&i.status===s).length;
+  const pend=pendingClaims().length,ret=S.claims.filter(x=>x.status==='APPROVED').length;
+  $('#stats').innerHTML=[['Lost, open',c('LOST','OPEN')],['Found, open',c('FOUND','OPEN')],['Suggested matches',pend],['Returned',ret]]
+    .map(([l,n])=>`<div class="stat"><b>${n}</b><span>${l}</span></div>`).join('');
+
+  const p=pendingClaims();
+  $('#matchTable').innerHTML=p.length?`<table><thead><tr><th>Lost item</th><th>Found item</th><th>Score</th><th></th></tr></thead><tbody>`+
+    p.map(x=>{const l=item(x.lostId),f=item(x.foundId);
+      return `<tr><td>${esc(l.name)}<br><span style="color:var(--mute)">${esc(l.owner)}</span></td>
+      <td>${esc(f.name)}<br><span style="color:var(--mute)">${esc(f.location)}</span></td>
+      <td><div class="bar" title="${x.score}%"><i style="width:${x.score}%"></i></div>${x.score}%</td>
+      <td><button class="btn" data-claim="${x.id}">Verify claim</button></td></tr>`}).join('')+`</tbody></table>`
+    :`<p class="empty">No suggested matches yet. Register a lost and a found item that look alike, or load the sample data.</p>`;
+
+  const r=S.claims.filter(x=>x.status==='APPROVED');
+  $('#reportTable').innerHTML=r.length?`<table><thead><tr><th>Item</th><th>Category</th><th>Owner</th><th>Finder</th><th>Proof given</th></tr></thead><tbody>`+
+    r.map(x=>{const l=item(x.lostId),f=item(x.foundId);
+      return `<tr><td>${esc(l.name)}</td><td><span class="pill">${esc(l.category)}</span></td><td>${esc(l.owner)}</td><td>${esc(f.owner)}</td><td>${esc(x.proof)}</td></tr>`}).join('')+`</tbody></table>`
+    :`<p class="empty">No returned items yet. Approved claims appear here.</p>`;
+}
+function pendingClaims(){return S.claims.filter(x=>x.status==='SUGGESTED'&&item(x.lostId)&&item(x.foundId)&&item(x.lostId).status==='OPEN'&&item(x.foundId).status==='OPEN')}
+$('#matchTable').onclick=e=>{const b=e.target.closest('[data-claim]');if(b)openVerify(+b.dataset.claim)};
+
+$('#sample').onclick=()=>{
+  const mk=(type,name,category,description,location,owner,contact)=>S.items.push({id:S.seq++,type,name,category,description,location,date:today(),owner,contact,status:'OPEN'});
+  mk('LOST','Black wallet','Bags','Black leather wallet with a brown stitched edge and a student ID card','Library','Aman Verma','aman@example.com');
+  mk('FOUND','Wallet','Bags','Leather wallet, black, student ID inside','Library','Guard Desk','desk@example.com');
+  mk('LOST','House keys','Keys','Three keys on a red ring with a small bell','Canteen','Simran Kaur','simran@example.com');
+  save();render();toast('Sample data loaded. The matcher will pair the wallets in a few seconds.');
+};
+$('#reset').onclick=()=>{S={items:[],claims:[],seq:1};save();render();toast('All demo data cleared')};
+
+show('lost');render();
+</script>
+</body>
+</html>
